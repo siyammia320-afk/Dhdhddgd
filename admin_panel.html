@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Forwarder - Admin Panel</title>
+    <!-- Bootstrap 5 CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar { background: linear-gradient(135deg, #0d6efd, #0dcaf0); }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.85rem; }
+        .status-online { background-color: #d1e7dd; color: #0f5132; }
+        .status-offline { background-color: #f8d7da; color: #842029; }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark shadow-sm py-3 mb-4">
+        <div class="container-fluid px-4">
+            <span class="navbar-brand mb-0 h1 fs-4"><i class="fa-solid fa-shield-halved me-2"></i> SMS Forwarder Admin Panel</span>
+            <span class="text-white small fw-bold">Connected to: smsmbot</span>
+        </div>
+    </nav>
+
+    <div class="container px-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="card p-3 bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Total Devices</h6>
+                            <h2 id="totalDevicesCount" class="fw-bold mb-0">0</h2>
+                        </div>
+                        <i class="fa-solid fa-mobile-screen-button fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3 bg-success text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Online Devices</h6>
+                            <h2 id="onlineDevicesCount" class="fw-bold mb-0">0</h2>
+                        </div>
+                        <i class="fa-solid fa-signal fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card p-3 bg-danger text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-uppercase mb-1">Offline Devices</h6>
+                            <h2 id="offlineDevicesCount" class="fw-bold mb-0">0</h2>
+                        </div>
+                        <i class="fa-solid fa-triangle-exclamation fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Devices Table Card -->
+        <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold mb-0"><i class="fa-solid fa-list me-2 text-primary"></i> Connected Devices</h4>
+                <span class="text-muted small">Auto-syncs in real time</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Device Model / ID</th>
+                            <th>Status</th>
+                            <th>Battery</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="devicesTableBody">
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">Connecting to Firebase...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <script>
+        // Your Firebase Database URL
+        const FIREBASE_URL = "https://smsmbot-default-rtdb.firebaseio.com";
+
+        try {
+            firebase.initializeApp({
+                databaseURL: FIREBASE_URL
+            });
+            const dbRef = firebase.database().ref("devices");
+
+            dbRef.on("value", (snapshot) => {
+                const data = snapshot.val();
+                const tbody = document.getElementById("devicesTableBody");
+                tbody.innerHTML = "";
+
+                if (!data) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-muted">No devices connected yet.</td></tr>`;
+                    document.getElementById("totalDevicesCount").innerText = "0";
+                    document.getElementById("onlineDevicesCount").innerText = "0";
+                    document.getElementById("offlineDevicesCount").innerText = "0";
+                    return;
+                }
+
+                let total = 0;
+                let online = 0;
+                let offline = 0;
+                const now = Date.now();
+
+                Object.keys(data).forEach((key) => {
+                    const dev = data[key];
+                    total++;
+
+                    // Consider online if lastSeen within 60 seconds (60,000 ms)
+                    const isOnline = (now - dev.lastSeen) < 60000;
+                    if (isOnline) online++; else offline++;
+
+                    const statusClass = isOnline ? "status-online" : "status-offline";
+                    const statusText = isOnline ? "Online" : "Offline";
+                    const batteryColor = dev.battery > 20 ? "bg-success" : "bg-danger";
+                    const timeAgo = new Date(dev.lastSeen).toLocaleTimeString();
+
+                    const row = `
+                        <tr>
+                            <td>
+                                <div class="fw-bold">${dev.deviceName || "Unknown Device"}</div>
+                                <small class="text-muted font-monospace">${dev.deviceId}</small>
+                            </td>
+                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                            <td style="width: 200px;">
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2 fw-semibold">${dev.battery}%</span>
+                                    <div class="progress flex-grow-1" style="height: 8px;">
+                                        <div class="progress-bar ${batteryColor}" role="progressbar" style="width: ${dev.battery}%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>${timeAgo}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+
+                document.getElementById("totalDevicesCount").innerText = total;
+                document.getElementById("onlineDevicesCount").innerText = online;
+                document.getElementById("offlineDevicesCount").innerText = offline;
+            });
+        } catch (e) {
+            console.error("Firebase init error:", e);
+        }
+    </script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
