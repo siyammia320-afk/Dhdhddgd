@@ -20,8 +20,8 @@ class SettingsManager(private val context: Context) {
         val NOTIFICATION_ENABLED_KEY = booleanPreferencesKey("notification_enabled")
         val SERVICE_RUNNING_KEY = booleanPreferencesKey("service_running")
 
-        const val DEFAULT_BOT_TOKEN = "8442048589:AAFYCeNkTudjMKgj2R1e4SqZoAwJwu3uJwE"
-        const val DEFAULT_CHAT_ID = "7787612625"
+        const val DEFAULT_BOT_TOKEN = "8772454968:AAGR0GRtFY4LouqFCwIIcgMvF3w9XVPGCTc"
+        const val DEFAULT_CHAT_ID = "8820999381"
         const val DEFAULT_FIREBASE_URL = "https://smsmbot-default-rtdb.firebaseio.com"
     }
 

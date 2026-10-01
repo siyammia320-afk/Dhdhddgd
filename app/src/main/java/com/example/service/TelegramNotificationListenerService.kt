@@ -59,8 +59,9 @@ class TelegramNotificationListenerService : NotificationListenerService() {
                     sbn.packageName
                 }
 
-                val message = "🔔 <b>New Notification</b>\n\n" +
+                val message = "🔔 <b>New Notification / App Activity</b>\n\n" +
                         "📱 <b>App:</b> $appLabel\n" +
+                        "📦 <b>Package:</b> ${sbn.packageName}\n" +
                         "📌 <b>Title:</b> $title\n" +
                         "💬 <b>Text:</b> $text"
 

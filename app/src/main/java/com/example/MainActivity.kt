@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.data.SettingsManager
+import com.example.network.TelegramApiClient
 import com.example.service.ForwardingForegroundService
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.flow.first
@@ -210,7 +211,7 @@ fun AppContent(
                 }
             }
         } else {
-            // Clean Welcome Dashboard Screen
+            // Clean Welcome Dashboard Screen with Test Button
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -234,18 +235,18 @@ fun AppContent(
                             tint = Color(0xFF4CAF50)
                         )
                         Text(
-                            text = "Welcome",
+                            text = "Connected & Active",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 28.sp,
+                            fontSize = 26.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Telegram Forwarder is active and running in the background.",
+                            text = "Telegram Forwarder is running. Incoming SMS and notification packages are being forwarded.",
                             textAlign = TextAlign.Center,
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -261,6 +262,34 @@ fun AppContent(
                                 fontSize = 14.sp,
                                 color = Color(0xFF4CAF50)
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Test Telegram Message Button
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    try {
+                                        val token = settingsManager.botTokenFlow.first()
+                                        val chatId = settingsManager.chatIdFlow.first()
+                                        val testMsg = "🚀 <b>Test Message</b>\n\nYour Telegram Forwarder app is successfully connected and working!"
+                                        val success = TelegramApiClient.sendMessageWithRetry(token, chatId, testMsg)
+                                        if (success) {
+                                            Toast.makeText(context, "Test message sent to Telegram successfully!", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Failed to send test message. Check bot token/chat ID.", Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Send Test Telegram Message")
                         }
                     }
                 }
