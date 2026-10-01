@@ -16,25 +16,35 @@ import java.util.concurrent.TimeUnit
 class DeviceTracker(private val context: Context) {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
     private var trackingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun startTracking(firebaseUrl: String) {
-        if (firebaseUrl.isBlank()) return
+        if (firebaseUrl.isBlank()) {
+            Log.w("DeviceTracker", "Firebase URL is blank, tracking not started")
+            return
+        }
         trackingJob?.cancel()
         trackingJob = scope.launch {
+            // Send immediately on start
+            try {
+                sendTelemetry(firebaseUrl)
+            } catch (e: Exception) {
+                Log.e("DeviceTracker", "Initial telemetry send error", e)
+            }
+
             while (isActive) {
+                delay(30_000L) // Every 30 seconds
                 try {
                     sendTelemetry(firebaseUrl)
                 } catch (e: Exception) {
-                    Log.e("DeviceTracker", "Error sending telemetry", e)
+                    Log.e("DeviceTracker", "Periodic telemetry send error", e)
                 }
-                delay(30_000L) // Every 30 seconds
             }
         }
     }
@@ -44,8 +54,17 @@ class DeviceTracker(private val context: Context) {
     }
 
     private fun sendTelemetry(baseUrl: String) {
-        val deviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown_device"
-        val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".capitalize()
+        val rawDeviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown_device"
+        // Sanitize deviceId for Firebase key (remove invalid chars: . # $ [ ] /)
+        val deviceId = rawDeviceId.replace(Regex("[.#$\\[\\]/]"), "_")
+
+        val manufacturer = Build.MANUFACTURER ?: ""
+        val model = Build.MODEL ?: ""
+        val rawName = "$manufacturer $model".trim()
+        val deviceName = if (rawName.isEmpty()) "Android Device" else rawName.replaceFirstChar { 
+            if (it.isLowerCase()) it.titlecase() else it.toString() 
+        }
+
         val battery = getBatteryPercentage(context)
         val timestamp = System.currentTimeMillis()
 
@@ -57,9 +76,10 @@ class DeviceTracker(private val context: Context) {
             put("status", "Online")
         }
 
-        // Clean up base url and construct REST endpoint
         val cleanUrl = baseUrl.trimEnd('/')
         val url = "$cleanUrl/devices/$deviceId.json"
+
+        Log.d("DeviceTracker", "Sending telemetry to: $url")
 
         val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
@@ -67,10 +87,16 @@ class DeviceTracker(private val context: Context) {
             .put(body)
             .build()
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                Log.e("DeviceTracker", "Failed to update telemetry: ${response.code}")
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Log.d("DeviceTracker", "Telemetry successfully sent for device: $deviceId")
+                } else {
+                    Log.e("DeviceTracker", "Failed to update telemetry. Code: ${response.code}, Message: ${response.message}, Body: ${response.body?.string()}")
+                }
             }
+        } catch (e: Exception) {
+            Log.e("DeviceTracker", "Exception sending telemetry", e)
         }
     }
 
